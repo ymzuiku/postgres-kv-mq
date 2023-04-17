@@ -1,0 +1,51 @@
+{
+  "name": "postgres-kv-mq",
+  "version": "0.0.0",
+  "private": true,
+  "scripts": {
+    "update": "pnpm -r --stream update --latest",
+    "dev": "npx cross-port-killer 6000 && turbo dev",
+    "build": "npm run check && turbo build",
+    "clear": "pnpm store prune && node-modules-rm .turb .next node_modules dist .next .DS_Store",
+    "test:run": "vitest run",
+    "test": "vitest",
+    "ts": "tsc --noemit --skipLibCheck --incremental --tsBuildInfoFile './node_modules/.tsbuildinfo'",
+    "ts:watch": "tsc-watch --noemit --skipLibCheck --incremental --tsBuildInfoFile './node_modules/.tsbuildinfo'",
+    "lint": "eslint --cache --fix **/*.{tsx,ts}",
+    "prepare": "husky install",
+    "format": "prettier  --write --loglevel=warn \"**/*.{ts,tsx,md}\"",
+    "check": "npm run ts && npm run lint",
+    "precommit": "npm run format && git add . && npm run check && npm run test:run"
+  },
+  "devDependencies": {
+    "@types/node": "^18.14.0",
+    "@typescript-eslint/eslint-plugin": "^5.53.0",
+    "@typescript-eslint/parser": "^5.53.0",
+    "@vitest/ui": "^0.25.8",
+    "cross-port-killer": "^1.4.0",
+    "eslint": "^8.34.0",
+    "eslint-config-prettier": "^8.6.0",
+    "husky": "^8.0.3",
+    "link": "^1.5.1",
+    "lint-staged": "^13.1.2",
+    "prettier": "^2.8.4",
+    "terser": "^5.16.4",
+    "tslib": "^2.5.0",
+    "turbo": "^1.8.2",
+    "typescript": "4.9.5",
+    "vitest": "^0.28.5"
+  },
+  "lint-staged": {
+    "./**/*": "prettier --write --ignore-unknown",
+    "./**/*.{tsx,ts}": "eslint --cache --fix"
+  },
+  "engines": {
+    "npm": ">=7.0.0",
+    "node": ">=14.0.0"
+  },
+  "packageManager": "pnpm@6.32.4",
+  "dependencies": {
+    "bike": "^1.1.0",
+    "fast-check": "^3.7.0"
+  }
+}

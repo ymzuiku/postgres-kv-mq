@@ -1,0 +1,17 @@
+{
+  "name": "postgres-mq",
+  "version": "0.1.0",
+  "private": false,
+  "main": "./lib/index.ts",
+  "types": "./lib/index.ts",
+  "scripts": {
+    "lib-build": "bike lib/index.ts ./cjs/index.js"
+  },
+  "dependencies": {
+    "postgres-kv": "workspace:*",
+    "pg": "^8.8.0"
+  },
+  "devDependencies": {
+    "@types/pg": "^8.6.5"
+  }
+}
