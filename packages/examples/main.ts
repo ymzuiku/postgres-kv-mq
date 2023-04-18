@@ -12,7 +12,7 @@ mq.baseConfig({
     // removeOnComplete: true,
   },
   queueConfig: {
-    delay: 9000,
+    // delay: 9000,
     // removeOnComplete: true,
     // removeOnFail: true,
     // removeOnCompleteDelay: 9000,
@@ -30,7 +30,7 @@ const table = "mq15";
 setTimeout(() => {
   const timer = setInterval(async () => {
     a += 1;
-    if (a > 100000) {
+    if (a > 10) {
       clearInterval(timer);
       return;
     }
@@ -47,14 +47,12 @@ setTimeout(() => {
     }
   });
 
-  let n = 0;
   mq.Worker(table, async (job) => {
     // await waiting(300);
     job.id * 2;
   });
 
   mq.Worker.addListenerCompleted((job) => {
-    n += 1;
     if (job.id % 100 === 0) {
       console.log("completed", job.id, job.data.name.length);
     }

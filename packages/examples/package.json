@@ -5,7 +5,7 @@
   "main": "app-router.ts",
   "scripts": {
     "dev": "npx bike ./main.ts ./node_modules/bike-dist/index.js --dev",
-    "build:example": "npx bike ./main.ts ./dist/index.js --build"
+    "build": "npx bike ./main.ts ./dist/index.js --build"
   },
   "keywords": [],
   "author": "",
