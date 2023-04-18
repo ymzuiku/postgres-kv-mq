@@ -90,8 +90,12 @@ async function updateState(table: string, id: number, state: State): Promise<voi
 async function updateFailNumber(table: string, id: number, maxFailed: number, removeOnFail: boolean): Promise<number> {
   table = getTableName(table);
   await createTable(table);
-  const resFail = await pgClient().query(`select fail from ${table} where id = $1 limit 1`, [id]);
+  const resFail = await pgClient().query(`select fail from ${table} where id = $1 and state='active'`, [id]);
+  if (resFail.rowCount === 0) {
+    throw new Error("update fail no find job");
+  }
   const fail = resFail.rows[0].fail;
+
   if (fail >= maxFailed) {
     await updateState(table, id, "failed");
     return fail;
@@ -100,11 +104,7 @@ async function updateFailNumber(table: string, id: number, maxFailed: number, re
   if (removeOnFail) {
     await del(table, id);
   } else {
-    const res = await pgClient().query(`update ${table} set fail=$2 state=$3 where id = $1 limit 1`, [
-      id,
-      fail + 1,
-      "wait",
-    ]);
+    const res = await pgClient().query(`update ${table} set fail=$2, state=$3 where id = $1`, [id, fail + 1, "wait"]);
     if (res.rowCount === 0) {
       throw new Error(`"set fail number failed:, ${table}, ${id} ${fail}`);
     }

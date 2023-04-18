@@ -25,13 +25,13 @@ let a = 0;
 let err = 0;
 
 const bigString = Array(9).fill("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").join(",");
-const table = "mq22";
-mq.setUnlogged("mq22");
+const table = "mq23";
+// mq.setUnlogged("mq22");
 
 setTimeout(() => {
   const timer = setInterval(async () => {
     a += 1;
-    if (a > 10000) {
+    if (a > 10) {
       clearInterval(timer);
       return;
     }
@@ -43,7 +43,7 @@ setTimeout(() => {
       await mq.Queue(table, { name: bigString });
     } catch (e) {
       err += 1;
-      console.log("--debug--err", err);
+      console.log("--debug--err", err, e);
       //
     }
   });
@@ -51,15 +51,22 @@ setTimeout(() => {
   mq.Worker(table, async (job) => {
     // await waiting(300);
     job.id * 2;
+    return { dog: job.id + "ddddog" };
   });
 
   mq.Worker.addListenerCompleted((job) => {
+    if (job.id % 2 === 1) {
+      throw new Error("err" + job.id);
+    }
     if (job.id % 100 === 0) {
-      console.log("completed", job.id, job.data.name.length);
+      console.log("completed", job.id, job.response?.dog);
     }
     // console.log("--debug--completed", job.id);
   });
   mq.Worker.addListenerFailed((err) => {
-    console.log("--debug--completed", err.message);
+    console.log("--debug--faild", err.message);
+  });
+  mq.Worker.addListenerCompleted((job) => {
+    console.log("--debug--completed", job.id);
   });
 }, 0);

@@ -21,8 +21,8 @@ export const baseWorkerConfig: Required<WorkerConfig> = {
   removeOnComplete: false,
   removeOnFail: false,
   limiter: {
-    max: 5000,
-    duration: 1000,
+    max: 0,
+    duration: 0,
   },
 };
 
@@ -42,26 +42,28 @@ export async function Worker(
   const { limiter, delay, idleWhenEmpty, maxFailed, removeOnComplete, removeOnFail } = config as Required<WorkerConfig>;
 
   const task = async () => {
-    try {
-      const taskNum = (await kvex.get<number>(MQ_STATE_TABLE, MQ_TASK_NUM)) || 0;
-      if (taskNum >= limiter.max) {
-        await waiting(Math.max(limiter.duration / limiter.max, 200));
-        task();
+    if (limiter.max && limiter.duration) {
+      try {
+        const taskNum = (await kvex.get<number>(MQ_STATE_TABLE, MQ_TASK_NUM)) || 0;
+        if (taskNum >= limiter.max) {
+          await waiting(Math.max(limiter.duration / limiter.max, 200));
+          task();
+          return;
+        }
+        if (taskNum === 0) {
+          await kvex.setEx(MQ_STATE_TABLE, MQ_TASK_NUM, limiter.duration, 1);
+        } else {
+          try {
+            await kvex.update(MQ_STATE_TABLE, MQ_TASK_NUM, taskNum + 1);
+          } catch (err) {
+            //
+          }
+        }
+      } catch (err) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        failedEvents.forEach((v) => v(err as any));
         return;
       }
-      if (taskNum === 0) {
-        await kvex.setEx(MQ_STATE_TABLE, MQ_TASK_NUM, limiter.duration, 1);
-      } else {
-        try {
-          await kvex.update(MQ_STATE_TABLE, MQ_TASK_NUM, taskNum + 1);
-        } catch (err) {
-          //
-        }
-      }
-    } catch (err) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      failedEvents.forEach((v) => v(err as any));
-      return;
     }
     if (delay > 0) {
       await waiting(delay);
