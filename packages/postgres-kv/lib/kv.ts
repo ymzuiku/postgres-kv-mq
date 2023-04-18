@@ -5,6 +5,12 @@ export type State = "wait" | "active" | "completed" | "failed";
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export type Job = { id: number; data: any; response?: any; failedCount?: number };
 
+const unloggeds: Record<string, boolean> = {};
+function setUnlogged(table: string) {
+  table = getTableName(table);
+  unloggeds[table] = true;
+}
+
 const cacheTable: Record<string, number> = {};
 async function createTable(table: string): Promise<void> {
   if (cacheTable[table] === 2) {
@@ -16,7 +22,7 @@ async function createTable(table: string): Promise<void> {
   }
   cacheTable[table] = 1;
   await pgClient().query(`
-  create table if not exists "${table}" (
+  create ${unloggeds[table] ? "UNLOGGED" : ""} table if not exists "${table}" (
     k varchar(2048) NOT NULL PRIMARY KEY,
     v varchar(81920),
     updateAt timestamptz NOT NULL DEFAULT now()
@@ -88,4 +94,5 @@ export const kv = {
   setOnce,
   get,
   del,
+  setUnlogged,
 };

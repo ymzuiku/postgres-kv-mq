@@ -1,3 +1,4 @@
+import "./init-kv-config";
 import { Job, State } from "./mq";
 import { mqBaseConfig } from "./mq-base-config";
 import { Queue, QueueConfig } from "./queue";

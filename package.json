@@ -6,6 +6,7 @@
     "update": "pnpm -r --stream update --latest",
     "dev": "npx cross-port-killer 6000 && turbo dev",
     "build": "npm run check && turbo build",
+    "lib-build": "npm run check && turbo lib-build",
     "clear": "pnpm store prune && node-modules-rm .turb .next node_modules dist .next .DS_Store",
     "test:run": "vitest run",
     "test": "vitest",

@@ -9,7 +9,7 @@ describe.concurrent("kvex", () => {
   kvex.config.clearInterval = 200;
   it("set and get", async () => {
     {
-      await kvex.setEx(table, "v1", 0.3, "the dog");
+      await kvex.setEx(table, "v1", 300, "the dog");
       const data = await kvex.get(table, "v1");
       expect(data).eq("the dog");
     }

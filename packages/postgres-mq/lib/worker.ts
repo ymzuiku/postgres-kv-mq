@@ -1,5 +1,5 @@
-import { kv, waiting } from "postgres-kv";
-import { MQ_HAS_JOB, MQ_STATE_TABLE } from "./keys";
+import { kv, kvex, waiting } from "postgres-kv";
+import { MQ_HAS_JOB, MQ_STATE_TABLE, MQ_TASK_NUM } from "./keys";
 import { Job, mqEvents } from "./mq";
 
 export interface WorkerConfig {
@@ -39,24 +39,30 @@ export async function Worker(
   fn: (job: Omit<Job, "response">) => any | Promise<any>,
   config: WorkerConfig = baseWorkerConfig,
 ) {
-  console.log("--debug--", "1111111111");
   const { limiter, delay, idleWhenEmpty, maxFailed, removeOnComplete, removeOnFail } = config as Required<WorkerConfig>;
-  let taskNum = 0;
 
-  let limiterTimer: NodeJS.Timeout | null = null;
   const task = async () => {
-    if (!limiterTimer) {
-      limiterTimer = setTimeout(() => {
-        taskNum = 0;
-        limiterTimer = null;
-      }, limiter.duration);
-    }
-    if (taskNum >= limiter.max) {
-      await waiting(100);
-      task();
+    try {
+      const taskNum = (await kvex.get<number>(MQ_STATE_TABLE, MQ_TASK_NUM)) || 0;
+      if (taskNum >= limiter.max) {
+        await waiting(Math.max(limiter.duration / limiter.max, 200));
+        task();
+        return;
+      }
+      if (taskNum === 0) {
+        await kvex.setEx(MQ_STATE_TABLE, MQ_TASK_NUM, limiter.duration, 1);
+      } else {
+        try {
+          await kvex.update(MQ_STATE_TABLE, MQ_TASK_NUM, taskNum + 1);
+        } catch (err) {
+          //
+        }
+      }
+    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      failedEvents.forEach((v) => v(err as any));
       return;
     }
-    taskNum += 1;
     if (delay > 0) {
       await waiting(delay);
     }

@@ -28,10 +28,8 @@ async function createTable(table: string): Promise<void> {
     state varchar(36) NOT NULL,
     fail int NOT NULL,
     v varchar(819200),
-    read bigint NOT NULL,
-    createAt timestamptz NOT NULL DEFAULT now()
+    read bigint NOT NULL
   );
-  create index if not exists idx_createAt on ${table} using BTREE(createAt);
   create index if not exists idx_state on ${table} using BTREE(state);
   create index if not exists idx_read on ${table} using BTREE(read);
   `);
@@ -40,19 +38,33 @@ async function createTable(table: string): Promise<void> {
 
 // create table and set key,value
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function insert(table: string, state: State, v: any, sizeLimit: number, delay: number): Promise<number> {
+export interface DataItem {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  data: any;
+  sizeLimit: number;
+  delay: number;
+}
+async function insert(table: string, state: State, datas: DataItem[]): Promise<number> {
   table = getTableName(table);
   await createTable(table);
-  const data = JSON.stringify({ v });
-  if (sizeLimit && data.length > sizeLimit) {
-    throw new Error(`"Queue data failed:, ${table}, the data size is larger than the sizeLimit`);
-  }
-  const res = await pgClient().query(
-    `insert into ${table} (state, fail, v, read) values ($1, 0, $2, $3) returning id`,
-    [state, data, Date.now() + delay],
-  );
+  let n = 0;
+  const sql: string[] = [];
+  const values: unknown[] = [];
+  datas.forEach(({ data, sizeLimit, delay }) => {
+    sql.push(`($${n + 1}, 0, $${n + 2}, $${n + 3})`);
+    n += 3;
+    values.push(state);
+    const v = JSON.stringify({ v: data });
+    if (sizeLimit && v.length > sizeLimit) {
+      throw new Error(`"Queue data failed:, ${table}, the data size is larger than the sizeLimit`);
+    }
+    values.push(v);
+    values.push(Date.now() + delay);
+  });
+  const text = sql.join(",");
+  const res = await pgClient().query(`insert into ${table} (state, fail, v, read) values ${text} returning id`, values);
   if (res.rowCount === 0) {
-    throw new Error(`"set failed:, ${table}, ${state}, ${v}`);
+    throw new Error(`"set failed:, ${table}, ${state}`);
   }
 
   const id = res.rows[0];
