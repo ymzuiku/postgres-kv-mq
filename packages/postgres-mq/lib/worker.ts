@@ -42,8 +42,9 @@ export async function Worker(
   const { limiter, delay, idleWhenEmpty, maxFailed, removeOnComplete, removeOnFail } = config as Required<WorkerConfig>;
 
   const task = async () => {
-    if (limiter.max && limiter.duration) {
-      try {
+    let job: Job | null;
+    try {
+      if (limiter.max && limiter.duration) {
         const taskNum = (await kvex.get<number>(MQ_STATE_TABLE, MQ_TASK_NUM)) || 0;
         if (taskNum >= limiter.max) {
           await waiting(Math.max(limiter.duration / limiter.max, 200));
@@ -59,21 +60,17 @@ export async function Worker(
             //
           }
         }
-      } catch (err) {
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        failedEvents.forEach((v) => v(err as any));
-        return;
       }
-    }
-    if (delay > 0) {
-      await waiting(delay);
-    }
 
-    try {
-      const job = await mqEvents.get(table, "wait");
+      await waiting(5);
+      if (delay > 0) {
+        await waiting(delay);
+      }
+
+      job = await mqEvents.get(table, "wait");
 
       if (job) {
-        activeEvents.forEach((v) => v(job));
+        activeEvents.forEach((v) => v(job!));
 
         await mqEvents.updateState(table, job.id, "active");
 
@@ -85,17 +82,11 @@ export async function Worker(
             await mqEvents.updateState(table, job.id, "completed");
           }
 
-          completedEvents.forEach((v) => v({ ...job, response }));
+          completedEvents.forEach((v) => v({ ...job!, response }));
         } catch (err) {
-          let failedCount: number | undefined = void 0;
-          try {
-            failedCount = await mqEvents.updateFailNumber(table, job.id, maxFailed, removeOnFail);
-          } catch (err) {
-            // eslint-disable-next-line @typescript-eslint/no-explicit-any
-            failedEvents.forEach((v) => v(err as any, { ...job, failedCount }));
-          }
+          const failedCount = await mqEvents.updateFailNumber(table, job.id, maxFailed, removeOnFail);
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
-          failedEvents.forEach((v) => v(err as any, { ...job, failedCount }));
+          failedEvents.forEach((v) => v(err as any, { ...job!, failedCount }));
         }
       }
       if (!job) {
@@ -109,6 +100,7 @@ export async function Worker(
       failedEvents.forEach((v) => v(err as any));
     }
     task();
+    return;
   };
   task();
 }
