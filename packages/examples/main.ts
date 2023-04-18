@@ -9,7 +9,7 @@ pgConnect();
 
 mq.baseConfig({
   workerConfig: {
-    // removeOnComplete: true,
+    removeOnComplete: true,
   },
   queueConfig: {
     // delay: 9000,
@@ -25,7 +25,7 @@ let a = 0;
 let err = 0;
 
 const bigString = Array(9).fill("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").join(",");
-const table = "mq15";
+const table = "mq17";
 
 setTimeout(() => {
   const timer = setInterval(async () => {
