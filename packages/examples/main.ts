@@ -21,31 +21,32 @@ mq.baseConfig({
   },
 });
 
-const a = 0;
-const err = 0;
+let a = 0;
+let err = 0;
 
 const bigString = Array(9).fill("aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa").join(",");
-const table = "mq21";
+const table = "mq22";
+mq.setUnlogged("mq22");
 
 setTimeout(() => {
-  // const timer = setInterval(async () => {
-  //   a += 1;
-  //   if (a > 10000) {
-  //     clearInterval(timer);
-  //     return;
-  //   }
+  const timer = setInterval(async () => {
+    a += 1;
+    if (a > 10000) {
+      clearInterval(timer);
+      return;
+    }
 
-  //   if (a % 100 === 0) {
-  //     console.log("--debug--insert", a);
-  //   }
-  //   try {
-  //     await mq.Queue(table, { name: bigString });
-  //   } catch (e) {
-  //     err += 1;
-  //     console.log("--debug--err", err);
-  //     //
-  //   }
-  // });
+    if (a % 100 === 0) {
+      console.log("--debug--insert", a);
+    }
+    try {
+      await mq.Queue(table, { name: bigString });
+    } catch (e) {
+      err += 1;
+      console.log("--debug--err", err);
+      //
+    }
+  });
 
   mq.Worker(table, async (job) => {
     // await waiting(300);

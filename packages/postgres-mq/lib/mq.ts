@@ -12,6 +12,12 @@ function getTableName(table: string) {
   return "mq_" + safeSql(table);
 }
 
+const unloggeds: Record<string, boolean> = {};
+function setUnlogged(table: string) {
+  table = getTableName(table);
+  unloggeds[table] = true;
+}
+
 const cacheTable: Record<string, number> = {};
 async function createTable(table: string): Promise<void> {
   if (cacheTable[table] === 2) {
@@ -23,7 +29,7 @@ async function createTable(table: string): Promise<void> {
   }
   cacheTable[table] = 1;
   await pgClient().query(`
-  create table if not exists "${table}" (
+  create ${unloggeds[table] ? "UNLOGGED" : ""} table if not exists "${table}" (
     id integer primary key generated always as identity,
     state varchar(36) NOT NULL,
     fail int NOT NULL,
@@ -173,4 +179,5 @@ export const mqEvents = {
   updateState,
   delByState,
   updateFailNumber,
+  setUnlogged,
 };
