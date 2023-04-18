@@ -6,6 +6,9 @@ export type State = "wait" | "active" | "completed" | "failed";
 export type Job = { id: number; data: any; response?: any; failedCount?: number };
 
 function getTableName(table: string) {
+  if (/^mq_/.test(table)) {
+    return safeSql(table);
+  }
   return "mq_" + safeSql(table);
 }
 
@@ -24,31 +27,30 @@ async function createTable(table: string): Promise<void> {
     id integer primary key generated always as identity,
     state varchar(36) NOT NULL,
     fail int NOT NULL,
-    v varchar(81920),
-    ex bigint NOT NULL,
-    updateAt timestamptz NOT NULL DEFAULT now()
+    v varchar(819200),
+    read bigint NOT NULL,
+    createAt timestamptz NOT NULL DEFAULT now()
   );
-  create index if not exists ${table}_updateAt on kvex using BTREE(ex);
-  create index if not exists ${table}_state on kvex using BTREE(ex);
-  create index if not exists ${table}_ex on kvex using BTREE(ex);
+  create index if not exists idx_createAt on ${table} using BTREE(createAt);
+  create index if not exists idx_state on ${table} using BTREE(state);
+  create index if not exists idx_read on ${table} using BTREE(read);
   `);
   cacheTable[table] = 2;
 }
 
 // create table and set key,value
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function insert(table: string, state: State, v: any, sizeLimit?: number): Promise<number> {
+async function insert(table: string, state: State, v: any, sizeLimit: number, delay: number): Promise<number> {
   table = getTableName(table);
   await createTable(table);
   const data = JSON.stringify({ v });
   if (sizeLimit && data.length > sizeLimit) {
     throw new Error(`"Queue data failed:, ${table}, the data size is larger than the sizeLimit`);
   }
-  const res = await pgClient().query(`insert into ${table} (state, fail, v, ex) values ($1, 0, $2, $3) returning id`, [
-    state,
-    data,
-    Date.now(),
-  ]);
+  const res = await pgClient().query(
+    `insert into ${table} (state, fail, v, read) values ($1, 0, $2, $3) returning id`,
+    [state, data, Date.now() + delay],
+  );
   if (res.rowCount === 0) {
     throw new Error(`"set failed:, ${table}, ${state}, ${v}`);
   }
@@ -67,7 +69,7 @@ async function updateState(table: string, id: number, state: State): Promise<voi
   }
 }
 
-async function updateFailNumber(table: string, id: number, maxFailed: number): Promise<number> {
+async function updateFailNumber(table: string, id: number, maxFailed: number, removeOnFail: boolean): Promise<number> {
   table = getTableName(table);
   await createTable(table);
   const resFail = await pgClient().query(`select fail from ${table} where id = $1 limit 1`, [id]);
@@ -77,10 +79,19 @@ async function updateFailNumber(table: string, id: number, maxFailed: number): P
     return fail;
   }
 
-  const res = await pgClient().query(`update ${table} set fail=$2 where id = $1 limit 1`, [id, fail + 1]);
-  if (res.rowCount === 0) {
-    throw new Error(`"set fail number failed:, ${table}, ${id} ${fail}`);
+  if (removeOnFail) {
+    await del(table, id);
+  } else {
+    const res = await pgClient().query(`update ${table} set fail=$2 state=$3 where id = $1 limit 1`, [
+      id,
+      fail + 1,
+      "wait",
+    ]);
+    if (res.rowCount === 0) {
+      throw new Error(`"set fail number failed:, ${table}, ${id} ${fail}`);
+    }
   }
+
   return fail;
 }
 
@@ -90,7 +101,10 @@ async function get(table: string, state: State): Promise<Job | null> {
   table = getTableName(table);
   await createTable(table);
 
-  const res = await pgClient().query(`select id, v from ${table} where state = $1 limit 1`, [state]);
+  const res = await pgClient().query(`select id, v from ${table} where read < $1 and state = $2 limit 1`, [
+    Date.now(),
+    state,
+  ]);
   if (res.rowCount === 0) {
     return null;
   }
@@ -128,13 +142,13 @@ async function delByState(table: string, state: State): Promise<void> {
     return;
   }
 
-  table = getTableName(table);
   const hasDelay = await kvex.get(table, (state === "completed" ? REMOVE_ON_COMPLETE : REMOVE_ON_FAIL) + table);
 
   if (hasDelay) {
     return;
   }
-  table = safeSql(table);
+
+  table = getTableName(table);
   await createTable(table);
   await pgClient().query(`delete from ${table} where state = $1`, [state]);
 }

@@ -6,6 +6,8 @@ export interface WorkerConfig {
   delay?: number;
   idleWhenEmpty?: number;
   maxFailed?: number;
+  removeOnComplete?: boolean;
+  removeOnFail?: boolean;
   limiter?: {
     max: number;
     duration: number;
@@ -16,6 +18,8 @@ export const baseWorkerConfig: Required<WorkerConfig> = {
   idleWhenEmpty: 3000,
   delay: 0,
   maxFailed: 5,
+  removeOnComplete: false,
+  removeOnFail: false,
   limiter: {
     max: 5000,
     duration: 1000,
@@ -23,7 +27,7 @@ export const baseWorkerConfig: Required<WorkerConfig> = {
 };
 
 type JobEvent = (job: Job) => unknown;
-type FailedJobEvent = (error: Error, job: Job) => unknown;
+type FailedJobEvent = (error: Error, job?: Job) => unknown;
 // "wait" | "active" | "completed" | "failed";
 const activeEvents: JobEvent[] = [];
 const completedEvents: JobEvent[] = [];
@@ -35,7 +39,8 @@ export async function Worker(
   fn: (job: Omit<Job, "response">) => any | Promise<any>,
   config: WorkerConfig = baseWorkerConfig,
 ) {
-  const { limiter, delay, idleWhenEmpty, maxFailed } = config as Required<WorkerConfig>;
+  console.log("--debug--", "1111111111");
+  const { limiter, delay, idleWhenEmpty, maxFailed, removeOnComplete, removeOnFail } = config as Required<WorkerConfig>;
   let taskNum = 0;
 
   let limiterTimer: NodeJS.Timeout | null = null;
@@ -56,31 +61,44 @@ export async function Worker(
       await waiting(delay);
     }
 
-    const job = await mqEvents.get(table, "wait");
+    try {
+      const job = await mqEvents.get(table, "wait");
 
-    if (job) {
-      activeEvents.forEach((v) => v(job));
-      try {
-        const response = await Promise.resolve(fn(job));
-        await mqEvents.updateState(table, job.id, "completed");
-        completedEvents.forEach((v) => v({ ...job, response }));
-      } catch (err) {
-        let failedCount: number | undefined = void 0;
+      if (job) {
+        activeEvents.forEach((v) => v(job));
+
+        await mqEvents.updateState(table, job.id, "active");
+
         try {
-          failedCount = await mqEvents.updateFailNumber(table, job.id, maxFailed);
+          const response = await Promise.resolve(fn(job));
+          if (removeOnComplete) {
+            await mqEvents.del(table, job.id);
+          } else {
+            await mqEvents.updateState(table, job.id, "completed");
+          }
+
+          completedEvents.forEach((v) => v({ ...job, response }));
         } catch (err) {
+          let failedCount: number | undefined = void 0;
+          try {
+            failedCount = await mqEvents.updateFailNumber(table, job.id, maxFailed, removeOnFail);
+          } catch (err) {
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            failedEvents.forEach((v) => v(err as any, { ...job, failedCount }));
+          }
           // eslint-disable-next-line @typescript-eslint/no-explicit-any
           failedEvents.forEach((v) => v(err as any, { ...job, failedCount }));
         }
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        failedEvents.forEach((v) => v(err as any, { ...job, failedCount }));
       }
-    }
-    if (!job) {
-      const hasJob = await kv.get<boolean>(MQ_STATE_TABLE, MQ_HAS_JOB);
-      if (!hasJob) {
-        await waiting(idleWhenEmpty);
+      if (!job) {
+        const hasJob = await kv.get<boolean>(MQ_STATE_TABLE, MQ_HAS_JOB);
+        if (!hasJob) {
+          await waiting(idleWhenEmpty);
+        }
       }
+    } catch (err) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      failedEvents.forEach((v) => v(err as any));
     }
     task();
   };

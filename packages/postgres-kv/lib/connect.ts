@@ -17,7 +17,7 @@ export function pgConnect(urlOrPool?: string | Pool | PoolClient) {
   if (!urlOrPool) {
     urlOrPool = process.env["DATABASE_URL"];
   }
-  cache.pg = new Pool({ connectionString: urlOrPool as string });
+  cache.pg = new Pool({ connectionString: urlOrPool as string, max: 20, maxUses: 10 });
 }
 
 export function pgClient() {

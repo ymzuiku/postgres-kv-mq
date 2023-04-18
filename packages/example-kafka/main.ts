@@ -12,7 +12,6 @@ mq.baseConfig({
     // removeOnComplete: true,
   },
   queueConfig: {
-    delay: 9000,
     // removeOnComplete: true,
     // removeOnFail: true,
     // removeOnCompleteDelay: 9000,
@@ -30,7 +29,7 @@ const table = "mq15";
 setTimeout(() => {
   const timer = setInterval(async () => {
     a += 1;
-    if (a > 100000) {
+    if (a > 1000) {
       clearInterval(timer);
       return;
     }

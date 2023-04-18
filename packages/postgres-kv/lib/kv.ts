@@ -21,12 +21,15 @@ async function createTable(table: string): Promise<void> {
     v varchar(81920),
     updateAt timestamptz NOT NULL DEFAULT now()
   );
-  create index if not exists ${table}_updateAt on kv using BTREE(updateAt);
+  create index if not exists idx_updateAt on ${table} using BTREE(updateAt);
   `);
   cacheTable[table] = 2;
 }
 
 function getTableName(table: string) {
+  if (/^kv_/.test(table)) {
+    return safeSql(table);
+  }
   return "kv_" + safeSql(table);
 }
 
