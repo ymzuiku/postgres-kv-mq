@@ -1,8 +1,9 @@
 {
-  "name": "@amarkdown/server",
+  "name": "example",
   "version": "1.0.0",
   "description": "",
   "main": "app-router.ts",
+  "private": true,
   "scripts": {
     "dev": "npx bike ./main.ts ./node_modules/bike-dist/index.js --dev",
     "build": "npx bike ./main.ts ./dist/index.js --build"
